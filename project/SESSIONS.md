@@ -529,3 +529,41 @@ EasyBusiness; commit `b4aa8d1`.
 **Estado ao final**: Fase 1.11 completa — desbloqueia o resto da Fase 14.4 do Anchor
 (`main_us_stock`/`main_reit`/`main_etf_us`, benchmarks, `resolve_fii_cnpj`), que fechou na sessão
 seguinte do lado dele (ver `SESSIONS.md` do Anchor, Sessão 92).
+
+### 2026-09-16 — Sessão 13
+
+**Objetivo**: pendência antiga (registrada na Sessão 11 quando o dono do projeto decidiu trocar
+o nome) — renomear o projeto/produto "EasyBusiness" para "Lume". Escopo confirmado com o dono
+do projeto antes de mexer, por ser mudança de grande superfície (repositório público no GitHub,
+URL do GitHub Pages, credenciais do Postgres local).
+
+**O que foi feito**:
+- Trocadas as referências vivas ao nome antigo: título/prosa em `README.md` e
+  `project/{CONTEXT,INDEX,OVERVIEW,ROADMAP}.md`, título do FastAPI (`api/app/main.py`),
+  User-Agent dos 4 clientes HTTP (`api/app/sources/{bcb_sgs,acoes_yahoo,b3_index_stats,
+  sec_edgar}.py`), nome do projeto Compose + credenciais do Postgres local em
+  `docker-compose.yml`, `NEXT_BASE_PATH` no workflow `deploy-docs.yml`, e nome do pacote npm em
+  `docs/package.json`/`package-lock.json`. Convenção adotada: "Lume" (capitalizado) em prosa/
+  nome de exibição, "lume" (minúsculo) em slugs/paths — mesmo padrão já usado pros projetos
+  irmãos (`Anchor`/`anchor`).
+- **Decisão consciente**: `SESSIONS.md` e `PHASE.md` ficaram de fora — são log histórico do que
+  aconteceu sob o nome antigo, não documentação viva; reescrever mudaria o registro do que
+  realmente aconteceu em cada sessão passada.
+- Volumes Docker locais antigos (`easybusiness_db-data`, `easybusiness_docs-node-modules`)
+  removidos (dev local, descartável) — próximo `docker compose up` recria do zero sob o novo
+  nome de projeto Compose (`lume`).
+- Commit `76bca07` (não amend), push pro remote.
+- Repositório GitHub renomeado `masterlxz/easybusiness` → `masterlxz/lume` (via `gh repo rename`,
+  GitHub redireciona o nome antigo por um tempo), remote local atualizado
+  (`git remote set-url origin`). Diretório local renomeado
+  (`~/Documents/workspace/easybusiness` → `~/Documents/workspace/lume`).
+- Validado ao vivo: `docker compose config` (compose file válido depois do rename),
+  `gh repo view masterlxz/lume` (rename confirmado), workflow `deploy-docs.yml` disparado pelo
+  push (o próprio arquivo mudou, está no path trigger) rodou verde, e
+  `https://masterlxz.github.io/lume/docs/` responde 200 (URL nova do GitHub Pages já no ar).
+
+**Estado ao final**: rename completo — código, docs vivos, repo remoto, diretório local e Pages
+público todos sob "Lume". Pendência da memória (`pending_rename_lume.md`) removida por
+resolvida. Sem impacto em `SESSIONS.md`/`PHASE.md` (histórico preservado) nem nos 3 itens de
+brainstorm da Sessão 11 (câmbio multi-moeda, Selic/DI futuro, gestão de opções — continuam sem
+pesquisa de fontes, ver `ROADMAP.md`).
