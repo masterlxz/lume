@@ -68,6 +68,59 @@ nada mais depender de lógica local) — com a 1.11 fechada, os 3 fluxos que res
 Fase 14.4 do Anchor (`main_us_stock`/`main_reit`/`main_etf_us`, benchmarks, `resolve_fii_cnpj`)
 ficam livres pra portar.
 
+### Ingestão proativa por agendamento — Finance DB desacoplado do request (Brainstorm — sem `/plan`)
+
+**Contexto**: hoje todo domínio (`macro_series_service.py`, `stock_service.py`, etc.) segue o
+mesmo padrão cache-through **100% reativo** — o Postgres só é alimentado quando um consumidor
+faz uma requisição e o `fetched_at` daquele identificador já estourou o TTL (`freshness.py`).
+Isso é exatamente a linha ainda em aberto na tabela de decisões do `ARCHITECTURE.md`
+("Cadência de coleta por fonte"). Funciona bem pro estágio atual (Anchor como único consumidor),
+mas tem duas consequências que só ficam visíveis em produção com tráfego real: (1) quem faz a
+requisição que estoura o TTL paga o custo da fonte externa na hora — às vezes minutos (o
+COTAHIST anual da Fase 1.15 leva ~2min na primeira chamada); (2) o Postgres nunca é "nosso banco
+de verdade" de forma independente — ele é só um cache com validade, que desaparece de fato (fica
+stale) se ninguém pedir aquele dado por tempo suficiente.
+
+**Proposta**: separar duas responsabilidades hoje fundidas no mesmo service — **ingestão**
+(busca na fonte externa + upsert no Postgres, em cadência própria por tipo de dado, sem nenhum
+request de consumidor envolvido) e **serving** (a API só lê do Postgres; no caminho feliz, nunca
+fala com uma fonte externa dentro do ciclo de um request). As funções de fetch+upsert que já
+existem em cada `*_service.py` são exatamente o que um job de ingestão executaria — não é código
+novo por fonte, é a mesma lógica disparada por um agendador em vez de por um handler HTTP.
+
+- **Cadência por tipo de dado** (reaproveitando o TTL que cada fonte já declara hoje como pista):
+  intraday pra cotação (stock/crypto/currency quotes, ~1-5min, mesmo valor de
+  `stock_quote_ttl_seconds`); diária pra fonte que fecha 1x/dia (EOD/COTAHIST de opções, curva
+  DI, Selic diária, índices B3 — rodar logo após o fechamento do pregão); baixa frequência pra
+  fundamento (CVM/SEC/bolsai, macro mensal do BCB — 1x/dia já é folgado dado TTL de 24h+ que já
+  existe).
+- **Componente novo**: um worker/scheduler separado do processo da API (serviço novo no
+  `docker-compose.yml`, ao lado de `api`/`docs`) — não dentro do próprio FastAPI, pra não competir
+  pelo threadpool com requests reais de consumidor. Dado o padrão self-host já estabelecido (sem
+  infra gerenciada), a opção mais simples é um processo Python com **APScheduler** rodando as
+  mesmas funções de `sources/`+upsert (mesma stack, sem componente novo de infra) — alternativa
+  mais pesada seria Celery beat+worker, que traz retry/concorrência distribuída mais robustos mas
+  exige broker novo (Redis), provavelmente desproporcional ao volume de fontes atual (~15
+  domínios).
+- **Cache-through não é descartado — vira rede de segurança**: um identificador nunca antes
+  buscado (ex: ticker novo que ninguém pediu ainda) continua disparando fetch síncrono na
+  primeira chamada, como hoje. Depois disso, o job de ingestão assume a atualização periódica e o
+  request handler nunca mais precisa falar com a fonte externa pra esse identificador. Modelo
+  híbrido, não uma reescrita all-or-nothing dos services existentes.
+- **Observabilidade nova, necessária**: hoje uma falha de fonte aparece como erro (ou stale) na
+  resposta de um request real — um job rodando sozinho de madrugada não tem esse sinal. Precisa
+  de um registro de execução por fonte (tabela nova, ex. `ingestion_runs`: fonte, iniciado_em,
+  terminado_em, status, linhas afetadas, erro) pra saber que uma fonte parou de responder sem
+  esperar um consumidor reclamar.
+- **Idempotência já resolvida**: todo upsert existente (`ON CONFLICT DO UPDATE`/`DO NOTHING`) já
+  é seguro de rodar em cadência fixa sem duplicar nem corromper dado — nenhuma mudança necessária
+  nessa camada, só quem chama muda (scheduler em vez de request).
+- **Quando faz sentido sequenciar**: quando o projeto sair do estágio MVP/self-host de
+  único-consumidor (Anchor) pra ter tráfego real de múltiplos consumidores simultâneos — hoje a
+  complexidade operacional de manter um scheduler (monitorar falha silenciosa, cadência por
+  fonte, etc.) não se paga ainda. Registrado aqui como proposta de arquitetura pra quando essa
+  fase chegar; não sequenciado em nenhuma Fase do `PHASE.md` ainda, nem passou por `/plan`.
+
 ### Ideias de Expansão (Brainstorm — sem `/plan`)
 
 - Open Finance de verdade (extratos bancários via Open Finance Brasil) — mencionado no
