@@ -18,7 +18,7 @@ const nextConfig: NextConfig = {
         images: { unoptimized: true },
         // Without this, `/docs` exports as the flat file `docs.html`, and
         // GitHub Pages 404s on `/docs/` (trailing slash) since there's no
-        // `docs/index.html` — confirmed live (masterlxz.github.io/easybusiness/docs/
+        // `docs/index.html` — confirmed live (masterlxz.github.io/lume/docs/
         // 404'd before this). `index.html`-per-folder output works for both
         // slash variants everywhere static hosts serve directory indexes.
         trailingSlash: true,

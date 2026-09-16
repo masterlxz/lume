@@ -7,11 +7,11 @@ export function baseOptions(): BaseLayoutProps {
       title: (
         <>
           <Logo className="size-5 text-fd-primary" />
-          EasyBusiness Finance API
+          Lume Finance API
         </>
       ),
       url: "/docs",
     },
-    githubUrl: "https://github.com/masterlxz/easybusiness",
+    githubUrl: "https://github.com/masterlxz/lume",
   };
 }

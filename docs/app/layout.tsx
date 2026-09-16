@@ -12,8 +12,8 @@ const spaceGrotesk = Space_Grotesk({
 const geistMono = Geist_Mono({ variable: "--font-mono", subsets: ["latin"] });
 
 export const metadata: Metadata = {
-  title: "EasyBusiness Finance API",
-  description: "Reference and guides for the EasyBusiness Finance API.",
+  title: "Lume Finance API",
+  description: "Reference and guides for the Lume Finance API.",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
