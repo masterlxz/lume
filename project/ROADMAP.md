@@ -81,16 +81,15 @@ ficam livres pra portar.
   entre moedas quaisquer (ex. USD/EUR, não só USD/BRL, EUR/BRL). Não pesquisado ainda: fonte de
   dados (BCB PTAX cobre bem vs. BRL, mas cross-rate entre estrangeiras provavelmente precisa de
   outra fonte tipo Yahoo Finance ou um provider de FX dedicado).
-- **Indicadores de juros brasileiros — Selic e DI futuro** (pedido do dono do projeto, Sessão
-  11) — Selic (meta e/ou efetiva) provavelmente sai do BCB SGS (mesma fonte já usada por outros
-  indicadores, ver `CONTEXT.md`); DI futuro (curva de juros, contratos futuros de DI da B3) é
-  mais incerto — não pesquisado ainda de onde puxar (B3 tem dados de mercado futuro, mas pode
-  exigir fonte paga ou scraping).
+- ~~**Indicadores de juros brasileiros — Selic e DI futuro**~~ — **concluído na Fase 1.13,
+  Sessão 14** (ver `PHASE.md`/`ARCHITECTURE.md`). Selic saiu do BCB SGS como esperado (código
+  432, Meta Selic); DI futuro achou fonte gratuita real (B3 "Pesquisa por Pregão", curva PRE) —
+  não precisou de fonte paga nem scraping.
 - **Gestão de opções** (pedido do dono do projeto, Sessão 11) — dono do projeto quer que o
   Anchor tenha suporte a gestão de opções (provavelmente opções de ações/índices B3, mas não
   confirmado). Não pesquisado: fonte de dados de opções (cotação, gregas, séries/strikes
   disponíveis) nem se a B3/CVM expõe isso de forma aberta ou se precisa de fonte paga.
-- Objetivo comum dos 3 itens acima: o Anchor precisa ter acesso a tudo isso via Finance API,
+- Objetivo comum dos itens acima: o Anchor precisa ter acesso a tudo isso via Finance API,
   no mesmo modelo já estabelecido (endpoint novo por capacidade, cache-through via Postgres,
   consumido pelo cliente HTTP do Anchor). Dono do projeto não tem certeza de quais fontes usar
-  para cada um — pesquisa de fontes é o primeiro passo antes de qualquer `/plan`.
+  pros itens restantes — pesquisa de fontes é o primeiro passo antes de qualquer `/plan`.

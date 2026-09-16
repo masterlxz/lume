@@ -567,3 +567,50 @@ público todos sob "Lume". Pendência da memória (`pending_rename_lume.md`) rem
 resolvida. Sem impacto em `SESSIONS.md`/`PHASE.md` (histórico preservado) nem nos 3 itens de
 brainstorm da Sessão 11 (câmbio multi-moeda, Selic/DI futuro, gestão de opções — continuam sem
 pesquisa de fontes, ver `ROADMAP.md`).
+
+### 2026-09-16 — Sessão 14
+
+**Objetivo**: pedido do dono do projeto pra seguir com 2 dos 3 itens de brainstorm da Sessão 11
+("Indicadores de juros brasileiros — Selic e DI futuro" — câmbio multi-moeda e gestão de opções
+ficaram de fora, continuam sem pesquisa). Fase 1.13, ver `PHASE.md`.
+
+**Pesquisa de fontes** (antes de qualquer `/plan`, confirmado ao vivo, não só por documentação):
+- **Selic**: BCB SGS, código 432 (Meta Selic definida pelo Copom, % a.a.) — mesma fonte já usada
+  por CDI/IPCA.
+- **DI futuro**: `www.b3.com.br/pesquisapregao/download?filelist=TS{YYMMDD}.ex_,` — sistema
+  legado "Pesquisa por Pregão" da B3, público e sem chave (diferente do UP2DATA novo, que ficou
+  atrás de Cloudflare em dez/2025 — confirmado esse bloqueio ao vivo antes de achar a
+  alternativa). Curva `PRE` = DIxPRE. Validação cruzada real: vértice de 1 dia bateu exatamente
+  com a série BCB 1178 (Selic anualizada) no mesmo dia (13,90% a.a., 2026-09-15). Profundidade
+  histórica confirmada até 2019-01-02.
+
+**Achados só descobertos durante a implementação** (nenhuma pesquisa prévia, nem a lib de
+referência `pyettj`, mencionava): BCB SGS recusa (HTTP 406) uma busca de série *diária* sem
+`dataInicial` — "janela de consulta de, no máximo, 10 anos". `fetch_daily_series`
+(`bcb_sgs.py`) pagina em janelas de 9 anos desde 1994. B3 devolve HTTP 200 com um zip de 22
+bytes pra data sem pregão (fim de semana/feriado) — tratado como "sem dado" (404), não erro.
+
+**Design**: novo domínio `rates` (`/v1/rates/...`) em vez de estender `macro_series.py` — aquele
+é explicitamente mensal (CDI/IPCA), estes são diários, shapes diferentes; mantém o contrato já
+publicado intocado. Os dois models novos (`selic_daily`, `di_futures_curve`, migration `0008`)
+reaproveitam `get_or_refresh_list` (`append_only_list_cache.py`, Fase 1.11.2) **sem nenhuma
+modificação** — a curva DI parecia precisar de uma chave de 3 colunas (entidade+data+vértice),
+mas não tem entidade além da própria `reference_date`, que faz o papel de id_column enquanto
+`dias_uteis` faz o de date_column, o mesmo truque que `reference_year` já fazia pro REIT.
+
+**Verificado ao vivo**: Selic meta com 10.058 pontos desde 1999-03-05 (14,00% a.a. atual), curva
+DI de 2026-09-15 com 272 vértices, 2026-09-13 (domingo) e slug Selic desconhecido retornando
+404, cache confirmado na 2ª chamada dos dois. Suite completa **225/225** sem regressão (+22
+testes novos). Ambiente Docker local desta máquina não cria rede bridge (sandbox sem
+`CAP_NET_ADMIN`) — verificação rodou via containers ad hoc em `--network host` contra um
+Postgres descartável, não via `docker compose` normal; não afeta o `docker-compose.yml` do
+projeto.
+
+**Achado à parte, corrigido nesta sessão**: `api/.env.example` ainda tinha credenciais
+`easybusiness` (resquício do rename da Sessão 13 — não pegou no grep por não ter extensão
+`.md/.json/.yml`), junto com menções vivas em `docs/` (título da API, `next.config.ts`,
+`layout.tsx`, `layout.shared.tsx`, `globals.css`, `quickstart.mdx`, `index.mdx`) que também
+tinham escapado da varredura anterior.
+
+**Estado ao final**: Fase 1.13 completa. Roadmap atualizado — restam só câmbio multi-moeda e
+gestão de opções como brainstorm sem fonte pesquisada (ver `ROADMAP.md`).

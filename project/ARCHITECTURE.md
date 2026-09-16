@@ -170,6 +170,38 @@ tomadas.
   não-financeiro) já documentada pelo Anchor, confirmando que a lógica de descarte foi portada
   corretamente.
 
+### Rates — Meta Selic diária + curva DI futuro — Sessão 14 (fecha a Fase 1.13)
+
+- **Selic** (`api/app/sources/bcb_sgs.py`, `fetch_daily_series`): mesma fonte de CDI/IPCA, código
+  432 (Meta Selic definida pelo Copom). Catálogo próprio (`selic_catalog.py`), deliberadamente
+  separado de `catalog.py` — aquele é explicitamente mensal, este é diário, shapes diferentes.
+  **Limite real do BCB SGS descoberto ao vivo**: uma busca sem `dataInicial` numa série diária
+  devolve HTTP 406 ("janela de consulta de, no máximo, 10 anos") — só afeta séries diárias,
+  por isso `fetch_monthly_series` nunca bateu nisso. `fetch_daily_series` pagina em janelas de 9
+  anos desde 1994 (janelas antes do início real da série voltam vazias, sem erro — mesmo
+  raciocínio do `b3_index_stats.py` pra anos antes da base de um índice).
+- **DI futuro / curva PRE** (`api/app/sources/b3_taxa_swap.py`): sistema legado "Pesquisa por
+  Pregão" da B3 (`www.b3.com.br/pesquisapregao/download?filelist=TS{YYMMDD}.ex_,`) — diferente do
+  UP2DATA novo, que passou a exigir sessão/Cloudflare a partir de dez/2025 (pesquisado e
+  descartado antes de achar essa alternativa). Arquivo é um zip externo contendo um blob
+  self-extracting que embute um zip interno com `TaxaSwap.txt` (texto de largura fixa, latin-1);
+  cliente filtra só a curva `PRE` (DIxPRE). TLS validou normalmente nos testes ao vivo — ao
+  contrário de uma implementação de referência (`pyettj`, lib externa consultada como ponto de
+  partida) que desabilita verificação de certificado, aqui não. Data sem pregão (fim de
+  semana/feriado) devolve HTTP 200 com zip de 22 bytes — tratado como lista vazia, não erro.
+- **Reuso do helper genérico sem modificação**: os dois models novos (`selic_daily`,
+  `di_futures_curve`) usam `get_or_refresh_list` (`append_only_list_cache.py`) tal como está — a
+  curva DI parecia precisar de uma chave composta de 3 colunas (entidade + data + vértice), mas
+  não tem entidade nenhuma além da própria data de referência: `reference_date` faz o papel de
+  id_column e `dias_uteis` o de date_column, o mesmo truque que `reference_year` já fazia pro
+  REIT (Fase 1.11.2). Novo domínio `rates.py` (router + service), não estende `macro_series.py`
+  — mantém o contrato já publicado (CDI/IPCA) intocado.
+- Validado ao vivo (Sessão 14): Meta Selic com 10.058 pontos desde 1999-03-05 (14,00% a.a.
+  atual); curva DI de 2026-09-15 com 272 vértices (vértice de 1 dia 13,90% a.a., batendo
+  exatamente com a série BCB 1178 do mesmo dia — validação cruzada entre as duas fontes novas);
+  domingo (2026-09-13) e slug Selic desconhecido retornando 404; cache confirmado nas 2ª
+  chamadas. Suite completa 225/225 sem regressão.
+
 ---
 
 ## Débitos Técnicos de Arquitetura

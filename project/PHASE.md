@@ -121,6 +121,32 @@ o Anchor faz de forma isolada (`data-collector/`), expondo tudo via uma API HTTP
   request direto. Verificado ao vivo os 4 endpoints novos com valores plausíveis (MVRV Z-Score
   0.15, Puell Multiple 0.98, Exchange Netflow -0.029, Active Addresses Trend -6.3%), cache
   confirmado na 2ª chamada. Suite completa **203/203** sem regressão (+7 testes novos).
+- [x] 1.13 — Meta Selic diária + curva DI futuro (PRE), via BCB SGS e B3 "Pesquisa por Pregão"
+  (Sessão 14): fecha os 2 itens de brainstorm "Indicadores de juros brasileiros" da Sessão 11
+  (ver `ROADMAP.md`). **Selic**: `fetch_daily_series` novo em `bcb_sgs.py` (código 432, Meta
+  Selic definida pelo Copom, % a.a.) — endpoint `GET /v1/rates/selic/{series_code}` (catálogo
+  próprio, `selic_catalog.py`, separado do `catalog.py` mensal que é explicitamente travado a
+  CDI/IPCA). **Achado real ao vivo, não documentado em pesquisa nenhuma consultada antes de
+  implementar**: BCB SGS recusa (HTTP 406) uma busca sem `dataInicial` numa série *diária*
+  ("O sistema aceita uma janela de consulta de, no máximo, 10 anos") — `fetch_monthly_series`
+  nunca bateu nisso por só servir séries mensais. `fetch_daily_series` pagina em janelas de 9
+  anos a partir de 1994 (mesmo raciocínio inofensivo do `b3_index_stats.py` pra anos antes da
+  base de um índice). **DI futuro**: `b3_taxa_swap.py` novo, porta a lógica de download/parse do
+  `pyettj` (referência externa) pro arquivo `TaxaSwap.ex_` do sistema legado "Pesquisa por
+  Pregão" da B3 (`www.b3.com.br/pesquisapregao/download?filelist=TS{YYMMDD}.ex_,` — diferente do
+  UP2DATA novo, que ficou atrás de Cloudflare em dez/2025), filtrando a curva `PRE` (DIxPRE).
+  Endpoint `GET /v1/rates/di-futures-curve/{reference_date}` retorna a curva completa (~270
+  vértices). Data sem pregão (fim de semana/feriado) — B3 devolve um zip de 22 bytes, tratado
+  como "sem dado" (404), não erro. Os dois models novos (`selic_daily`, `di_futures_curve`,
+  migration `0008`) reaproveitam `get_or_refresh_list` (`append_only_list_cache.py`) **sem
+  nenhuma modificação** — a curva DI parecia precisar de uma chave de 3 colunas (entidade+data+
+  vértice), mas não tem entidade além da própria `reference_date`, que faz o papel de id_column
+  enquanto `dias_uteis` faz o de date_column, exatamente como `reference_year` faz pro REIT
+  (Fase 1.11.2). Verificado ao vivo: Selic meta com 10.058 pontos desde 1999-03-05 (valor atual
+  14,00% a.a.), curva DI de 2026-09-15 com 272 vértices (vértice de 1 dia 13,90% a.a., batendo
+  exatamente com a série BCB 1178 do mesmo dia), 2026-09-13 (domingo) e slug Selic desconhecido
+  retornando 404 corretamente, cache confirmado na 2ª chamada dos dois. Suite completa
+  **225/225** sem regressão (+22 testes novos).
 
 ### Fase 2 — Engine Fiscal (SEFAZ)
 
