@@ -1,4 +1,4 @@
-# EasyBusiness — Estado do Projeto
+# Lume — Estado do Projeto
 
 > Última atualização: 2026-08-27 (Sessão 1 — bootstrap do projeto: blueprint lido, estrutura `project/` criada, catálogo inicial das fontes de dados do Anchor levantado)
 

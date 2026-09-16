@@ -58,7 +58,7 @@ continuavam rodando local no `data-collector/` dele por falta de endpoint equiva
 "Monetização" abaixo) do lado do Anchor — apagar `data-collector/` de vez, rodando a versão
 free/self-hosted da Finance API localmente "já instalada" (sem Docker/Postgres pro usuário
 final) e deixando um espaço de configuração pra apontar pra uma futura instância Cloud paga.
-Isso virou um plano cross-repo em 2 fases do lado EasyBusiness — **1.10** (modo sidecar
+Isso virou um plano cross-repo em 2 fases do lado Lume — **1.10** (modo sidecar
 SQLite/binário compilado, concluída na Sessão 10, ver `PHASE.md`) e **1.11** (as 4 capacidades
 acima, **concluída — ver `PHASE.md`**) — mais 5 sub-fases do lado Anchor (Fase 14 do `PHASE.md`
 dele: CI/bundling do sidecar, lifecycle+client em Rust, Settings Local/Remote, porta do

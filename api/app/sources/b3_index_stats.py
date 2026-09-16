@@ -46,7 +46,7 @@ def fetch_index_history(index_code: str, start_year: int, end_year: int | None =
         try:
             response = requests.get(
                 f"{B3_INDEX_STATS_URL}/{b64}",
-                headers={"User-Agent": "easybusiness-api/1.0"},
+                headers={"User-Agent": "lume-api/1.0"},
                 timeout=REQUEST_TIMEOUT_SECONDS,
             )
             response.raise_for_status()

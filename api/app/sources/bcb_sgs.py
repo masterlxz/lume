@@ -36,7 +36,7 @@ def fetch_monthly_series(series_code: int) -> list[dict]:
         response = requests.get(
             BCB_SGS_URL_TEMPLATE.format(code=series_code),
             params={"formato": "json"},
-            headers={"User-Agent": "easybusiness-api/1.0"},
+            headers={"User-Agent": "lume-api/1.0"},
             timeout=REQUEST_TIMEOUT_SECONDS,
         )
         response.raise_for_status()

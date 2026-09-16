@@ -52,7 +52,7 @@ def _fetch_chart(ticker: str, suffix: str, params: dict) -> dict:
         response = requests.get(
             f"{YAHOO_CHART_URL}/{ticker}{suffix}",
             params=params,
-            headers={"User-Agent": "easybusiness-api/1.0"},
+            headers={"User-Agent": "lume-api/1.0"},
             timeout=REQUEST_TIMEOUT_SECONDS,
         )
         response.raise_for_status()

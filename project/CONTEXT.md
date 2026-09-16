@@ -1,4 +1,4 @@
-# EasyBusiness - PRD v0.1 (MVP: Finance API)
+# Lume - PRD v0.1 (MVP: Finance API)
 
 ## Origem
 

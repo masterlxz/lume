@@ -88,7 +88,7 @@ class SecEdgarError(RuntimeError):
 
 
 def _headers(contact_email: str) -> dict:
-    return {"User-Agent": f"easybusiness-api ({contact_email})"}
+    return {"User-Agent": f"lume-api ({contact_email})"}
 
 
 def _get(url: str, contact_email: str) -> requests.Response:

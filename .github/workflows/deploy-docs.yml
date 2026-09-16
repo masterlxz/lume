@@ -1,7 +1,7 @@
 name: Deploy Docs
 
 # Builds and publishes docs/ (Next.js + Fumadocs) as a static export to
-# GitHub Pages, served at /easybusiness/docs/ (basePath, no custom domain —
+# GitHub Pages, served at /lume/docs/ (basePath, no custom domain —
 # see project/PHASE.md, Fase 1.8). The endpoint reference is generated from
 # a snapshot of the FastAPI OpenAPI schema, produced without running the
 # actual API server or a real database — `app.openapi()` is pure reflection
@@ -68,7 +68,7 @@ jobs:
       - name: Build static export
         working-directory: docs
         env:
-          NEXT_BASE_PATH: /easybusiness
+          NEXT_BASE_PATH: /lume
           OPENAPI_SCHEMA_PATH: ./openapi.json
         run: npm run build
 

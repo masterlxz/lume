@@ -1,16 +1,16 @@
-name: easybusiness
+name: lume
 
 services:
   db:
     image: postgres:17-alpine
     environment:
-      - POSTGRES_USER=easybusiness
-      - POSTGRES_PASSWORD=easybusiness
-      - POSTGRES_DB=easybusiness
+      - POSTGRES_USER=lume
+      - POSTGRES_PASSWORD=lume
+      - POSTGRES_DB=lume
     volumes:
       - db-data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U easybusiness"]
+      test: ["CMD-SHELL", "pg_isready -U lume"]
       interval: 5s
       timeout: 5s
       retries: 5

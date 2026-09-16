@@ -11,7 +11,7 @@ from app.routers import (
     us_stocks,
 )
 
-app = FastAPI(title="EasyBusiness Finance API", version="0.1.0")
+app = FastAPI(title="Lume Finance API", version="0.1.0")
 app.include_router(macro_series.router)
 app.include_router(stocks.router)
 app.include_router(companies.router)
