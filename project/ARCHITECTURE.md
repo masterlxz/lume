@@ -202,6 +202,40 @@ tomadas.
   domingo (2026-09-13) e slug Selic desconhecido retornando 404; cache confirmado nas 2ª
   chamadas. Suite completa 225/225 sem regressão.
 
+### Currencies — Câmbio multi-moeda — Sessão 15 (fecha o item de brainstorm)
+
+- **Decisão de catálogo, o ponto central desta feature**: diferente de todo catálogo anterior
+  do projeto (metais, indicadores cripto, índices B3, slugs Selic — todos mapeamentos opacos
+  código→identificador-de-fonte), a conversão par-de-moeda→ticker Yahoo é **mecânica**
+  (`"eurusd"` → `"EURUSD=X"`, só maiúsculas). Catalogar *pares* fixos, como `metals_catalog.py`
+  faz pra seus 4 metais, contrariaria o próprio pedido ("moedas quaisquer"). `currency_catalog.py`
+  whitelista **moedas individuais** (17 códigos ISO 4217), e um par é válido sse as duas metades
+  estão no catálogo e diferem — `resolve_pair()` roda **antes** de qualquer chamada ao Yahoo,
+  mantendo a convenção de "sem código especulativo" que todo outro catálogo do projeto já segue,
+  mesmo esse catálogo sendo estruturalmente diferente (moedas, não pares).
+- **Nenhum cliente HTTP novo**: reaproveita `app/sources/acoes_yahoo.py` diretamente
+  (`fetch_quote`/`fetch_price_history` com `suffix=""`), mesmo padrão de reuso que
+  `metals_catalog.py` já estabeleceu. `CurrencyQuote`/`CurrencyPriceHistory`
+  (`api/app/models/currency.py`) reaproveitam `single_row_cache.get_or_refresh_single_row` e
+  `append_only_list_cache.get_or_refresh_list` sem nenhuma modificação — só `pair_code` no lugar
+  de `metal_code`.
+- **Sem coluna `name` persistida** (diferente de `MetalQuote`): `base_currency`/`quote_currency`
+  são deriváveis de `pair_code` por simples split de string, então o service computa os dois em
+  tempo de leitura em vez de persistir um valor redundante.
+- **TTL**: reaproveita `stock_quote_ttl_seconds` (quote) e `cache_ttl_seconds` (price-history)
+  existentes — mesma decisão que metais já tomou, nenhum campo novo em `Settings`.
+- **Limitação conhecida, deliberadamente evitada por curadoria** (não é débito técnico): moedas
+  de valor ultra-baixo como VND fazem o Yahoo arredondar a cotação pra `0,0` na própria precisão
+  reportada pela API — descoberto ao vivo durante a pesquisa. A lista curada de 17 moedas
+  (majors G10-ish, BRL, CNY, Mercosul/LatAm) evita esse caso por construção, em vez de tentar
+  corrigi-lo com mais casas decimais ou uma fonte alternativa.
+- Validado ao vivo (Sessão 15): `eurusd` (1,1539 USD), `usdbrl` (5,1402 BRL), `gbpjpy` (cross
+  entre duas moedas não-BRL, 208,529 JPY — a prova de que "moedas quaisquer" funciona de ponta a
+  ponta pela nossa própria camada de catálogo+cache, não só no Yahoo), `arsusd`/`copbrl` (pares
+  LatAm), `usdusd` e par com componente desconhecido (`xyzusd`) retornando 404 sem nenhuma
+  chamada ao Yahoo, cache confirmado na 2ª chamada, histórico de `eurusd` com 2.601 pontos desde
+  2016-09-15. Suite completa 234/234 sem regressão (+9 testes novos).
+
 ---
 
 ## Débitos Técnicos de Arquitetura

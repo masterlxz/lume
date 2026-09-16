@@ -148,6 +148,43 @@ o Anchor faz de forma isolada (`data-collector/`), expondo tudo via uma API HTTP
   retornando 404 corretamente, cache confirmado na 2ª chamada dos dois. Suite completa
   **225/225** sem regressão (+22 testes novos).
 
+- [x] 1.14 — Câmbio multi-moeda (Sessão 15): fecha o item de brainstorm "Câmbio multi-moeda"
+  da Sessão 11 (ver `ROADMAP.md`) — pedido explícito do dono do projeto por cotação entre
+  **moedas quaisquer** (ex. USD/EUR), não só pares vs. Real. **Achado que derrubou a hipótese
+  original do roadmap** (que presumia precisar de BCB PTAX pra BRL + uma fonte separada pra
+  cross entre estrangeiras): o mesmo endpoint não-oficial do Yahoo Finance que
+  `acoes_yahoo.py` já usa pra ações/metais aceita qualquer par de moedas via convenção de
+  ticker `{BASE}{QUOTE}=X` — confirmado ao vivo `USDBRL=X`, `EURUSD=X`, `EURBRL=X` e, mais
+  importante, `GBPJPY=X` (cross entre duas moedas não-BRL, sem nenhuma delas ser a moeda de
+  cotação "nativa" de nenhum provider dedicado), além de ordem invertida (`ARSUSD=X`,
+  `TRYJPY=X`) e histórico de 10 anos com o mesmo shape que `fetch_price_history` já parseia.
+  Ticker desconhecido devolve HTTP 404 real, já absorvido pelo `YahooFinanceError` existente
+  via `raise_for_status()`. **Fecha com uma fonte só, sem cliente HTTP novo** — mesmo reuso
+  que `metals_catalog.py` já estabelece (`acoes_yahoo.fetch_quote`/`fetch_price_history` com
+  `suffix=""`).
+  **Design**: diferente de `metals_catalog.py` (mapeamento opaco código→símbolo, ex.
+  "xau"→"GC=F", por isso precisa ser um catálogo de *pares* fixo), a conversão par→ticker de
+  câmbio é mecânica (`"eurusd"` → `"EURUSD=X"`, só maiúsculas) — catalogar pares fixos
+  contrariaria o próprio pedido de "moedas quaisquer". `currency_catalog.py` whitelista
+  **moedas individuais** (17 códigos ISO 4217: majors G10-ish, BRL, CNY — maior parceiro
+  comercial do Brasil — e Mercosul/LatAm: ARS/UYU/PYG/CLP/COP/PEN/MXN, alinhado ao público-alvo
+  do projeto, `CONTEXT.md`), e um par é válido se as duas metades estiverem no catálogo e forem
+  diferentes — até 17×16=272 pares sem whitelist especulativa de par. Deliberadamente fora:
+  moedas de valor ultra-baixo tipo VND (achado ao vivo: Yahoo arredonda pra `0,0` na própria
+  precisão reportada). Validação de catálogo acontece **antes** de qualquer chamada ao Yahoo
+  (mesma convenção "sem código especulativo" de metais/B3-index/Selic) — `UnknownCurrencyPairError`
+  vira 404 sem tocar a rede. `CurrencyQuote`/`CurrencyPriceHistory` (migration `0009`) não têm
+  coluna `name` como `MetalQuote` tem — `base_currency`/`quote_currency` são derivados de
+  `pair_code` em tempo de leitura, não persistidos. TTL: reaproveita `stock_quote_ttl_seconds`/
+  `cache_ttl_seconds` existentes, mesma decisão que metais já tomou (sem TTL dedicado novo).
+  Endpoints `GET /v1/currencies/{pair_code}/quote` e `/price-history`.
+  **Verificado ao vivo**: `eurusd` (1,1539/1,1541 USD), `usdbrl` (5,1402 BRL), `gbpjpy` (cross
+  entre duas moedas não-BRL, 208,529 JPY), `arsusd`/`copbrl` (pares LatAm), `usdusd` e par com
+  componente desconhecido retornando 404 sem chamar o Yahoo, cache confirmado na 2ª chamada,
+  histórico de `eurusd` com 2.601 pontos desde 2016-09-15. Suite completa **234/234** sem
+  regressão (+9 testes novos). Resta só gestão de opções como item de brainstorm sem fonte
+  pesquisada (ver `ROADMAP.md`).
+
 ### Fase 2 — Engine Fiscal (SEFAZ)
 
 Do blueprint original — NF-e/NFS-e via certificado digital A1, validação de schemas XML,

@@ -4,6 +4,7 @@ from app.routers import (
     b3_indexes,
     companies,
     crypto,
+    currencies,
     fiis,
     macro_series,
     metals,
@@ -23,6 +24,7 @@ app.include_router(b3_indexes.router)
 app.include_router(metals.router)
 app.include_router(us_stocks.router)
 app.include_router(rates.router)
+app.include_router(currencies.router)
 
 
 @app.get("/healthz")

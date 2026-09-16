@@ -614,3 +614,43 @@ tinham escapado da varredura anterior.
 
 **Estado ao final**: Fase 1.13 completa. Roadmap atualizado — restam só câmbio multi-moeda e
 gestão de opções como brainstorm sem fonte pesquisada (ver `ROADMAP.md`).
+
+### 2026-09-16 — Sessão 15
+
+**Objetivo**: pedido do dono do projeto pra seguir com o item de brainstorm restante "Câmbio
+multi-moeda" da Sessão 11 (o outro, gestão de opções, ficou de fora — continua sem pesquisa).
+Fase 1.14, ver `PHASE.md`.
+
+**Pesquisa de fontes** (antes de qualquer `/plan`, confirmado ao vivo): a hipótese do roadmap
+era precisar de duas fontes (BCB PTAX pra BRL + algo tipo Yahoo Finance pra cross entre
+estrangeiras). Testado ao vivo contra a API real do Yahoo Finance — a mesma que
+`acoes_yahoo.py` já usa — e confirmado que o endpoint aceita **qualquer** par de moedas via
+convenção de ticker `{BASE}{QUOTE}=X`: `USDBRL=X` (5,1421), `EURUSD=X` (1,1541), `EURBRL=X`
+(5,9298) e, decisivo pra derrubar a hipótese de precisar de duas fontes, `GBPJPY=X` (208,568 —
+cross entre duas moedas não-BRL). Ordem invertida também funciona (`BRLUSD=X`, `ARSUSD=X`,
+`TRYJPY=X`, `ZARINR=X`), histórico de 10 anos tem o mesmo shape já parseado por
+`fetch_price_history` (`EURUSD=X` → 2.610 pontos), e ticker desconhecido devolve HTTP 404 real
+(`XYZABC=X`), já absorvido pelo `YahooFinanceError` existente. **Conclusão: uma fonte só, sem
+cliente HTTP novo** — mesmo reuso que `metals_catalog.py` já estabelece.
+
+**Design**: a conversão par→ticker é mecânica (diferente do mapeamento opaco de metais,
+"xau"→"GC=F"), então catalogar *pares* fixos como metais faz contrariaria o próprio pedido de
+"moedas quaisquer". `currency_catalog.py` novo whitelista **moedas individuais** (17 códigos:
+majors G10-ish, BRL, CNY, Mercosul/LatAm — alinhado ao público-alvo do projeto,
+`project/CONTEXT.md`), com `resolve_pair()` validando as duas metades contra o catálogo antes
+de qualquer chamada de rede. Achado durante a pesquisa: moedas de valor ultra-baixo tipo VND
+fazem o Yahoo arredondar a cotação pra `0,0` na própria precisão reportada — excluídas da lista
+curada por esse motivo, não é bug a corrigir depois. `CurrencyQuote`/`CurrencyPriceHistory`
+(migration `0009`) reaproveitam `single_row_cache`/`append_only_list_cache` sem modificação,
+sem coluna `name` (diferente de `MetalQuote`) — `base_currency`/`quote_currency` derivados de
+`pair_code` em tempo de leitura. TTL reaproveitado (`stock_quote_ttl_seconds`/
+`cache_ttl_seconds`), sem campo novo em `Settings`.
+
+**Verificado ao vivo**: `eurusd` (1,1539 USD), `usdbrl` (5,1402 BRL), `gbpjpy` (cross entre duas
+moedas não-BRL, 208,529 JPY), `arsusd`/`copbrl` (pares LatAm), `usdusd` e par com componente
+desconhecido (`xyzusd`) retornando 404 sem chamar o Yahoo, cache confirmado na 2ª chamada,
+histórico de `eurusd` com 2.601 pontos desde 2016-09-15. Suite completa **234/234** sem
+regressão (+9 testes novos).
+
+**Estado ao final**: Fase 1.14 completa. Roadmap atualizado — resta só gestão de opções como
+brainstorm sem fonte pesquisada (ver `ROADMAP.md`).

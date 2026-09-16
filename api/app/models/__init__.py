@@ -7,6 +7,7 @@ from app.models.crypto import (
     CryptoPriceHistory,
     CryptoQuote,
 )
+from app.models.currency import CurrencyPriceHistory, CurrencyQuote
 from app.models.fii import FiiCnpjResolution, FiiMonthlyIndicator, FiiProperty
 from app.models.macro_series import MacroSeriesMonthly
 from app.models.metal import MetalPriceHistory, MetalQuote
@@ -50,6 +51,8 @@ __all__ = [
     "CryptoCoinResolution",
     "CryptoQuote",
     "CryptoPriceHistory",
+    "CurrencyQuote",
+    "CurrencyPriceHistory",
     "B3IndexHistory",
     "MetalQuote",
     "MetalPriceHistory",

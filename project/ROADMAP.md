@@ -76,11 +76,11 @@ ficam livres pra portar.
   não sequenciada em relação às Fases 2-4 de `PHASE.md`.
 - Expor o catálogo de fontes como um SDK (Python/Node), mesmo padrão que TruthID e Anchor usam
   pros próprios integradores.
-- **Câmbio multi-moeda** (pedido do dono do projeto, Sessão 11) — hoje as fontes cambiais
-  existentes (se houver) presumivelmente só cobrem par vs. Real; a ideia é suportar cotação
-  entre moedas quaisquer (ex. USD/EUR, não só USD/BRL, EUR/BRL). Não pesquisado ainda: fonte de
-  dados (BCB PTAX cobre bem vs. BRL, mas cross-rate entre estrangeiras provavelmente precisa de
-  outra fonte tipo Yahoo Finance ou um provider de FX dedicado).
+- ~~**Câmbio multi-moeda**~~ — **concluído na Fase 1.14, Sessão 15** (ver `PHASE.md`/
+  `ARCHITECTURE.md`). A hipótese de precisar de duas fontes (BCB PTAX + algo à parte pra cross
+  entre estrangeiras) não se confirmou: o mesmo Yahoo Finance que `acoes_yahoo.py` já usa cobre
+  qualquer par via ticker `{BASE}{QUOTE}=X`, validado ao vivo inclusive pra cross entre duas
+  moedas não-BRL (`GBPJPY=X`) — uma fonte só, sem cliente HTTP novo.
 - ~~**Indicadores de juros brasileiros — Selic e DI futuro**~~ — **concluído na Fase 1.13,
   Sessão 14** (ver `PHASE.md`/`ARCHITECTURE.md`). Selic saiu do BCB SGS como esperado (código
   432, Meta Selic); DI futuro achou fonte gratuita real (B3 "Pesquisa por Pregão", curva PRE) —
