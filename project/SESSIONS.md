@@ -654,3 +654,58 @@ regressão (+9 testes novos).
 
 **Estado ao final**: Fase 1.14 completa. Roadmap atualizado — resta só gestão de opções como
 brainstorm sem fonte pesquisada (ver `ROADMAP.md`).
+
+### 2026-09-16 — Sessão 16
+
+**Objetivo**: pedido do dono do projeto pra seguir com o último item de brainstorm em aberto,
+"gestão de opções" (Sessão 11). Fase 1.15, ver `PHASE.md`.
+
+**Pesquisa de fontes** (ao vivo, antes de qualquer `/plan`): confirmado que não existe fonte
+grátis pra bid/ask, open interest ou gregas/IV de opções B3 — Yahoo Finance tem endpoint de
+chain de opções (`v7/finance/options/{ticker}`, funciona pra AAPL) mas devolve vazio pra
+PETR4.SA/VALE3.SA/BOVA11.SA/ITUB4.SA (Yahoo simplesmente não cobre derivativos B3), UP2DATA
+segue atrás de Cloudflare desde dez/2025 (mesmo achado da Sessão 14), bolsai não tem
+endpoint de derivativos. Duas fontes B3 gratuitas resolvem cadastro + preço: **Séries
+Autorizadas** (arquivo estático da B3, `fileDownload.jsp?fileId=...`, sem chave) dá o universo
+de séries registradas; **COTAHIST** (`COTAHIST_A{yyyy}.ZIP`, mesma linhagem legada que
+`b3_taxa_swap.py` já usa) dá o último preço realmente negociado. Escopo confirmado com o dono
+do projeto: ações e ETF/índice (BOVA11) juntos nesta fase; gregas ficam pra uma Fase 1.16
+futura (exigem Black-Scholes, que não existe no projeto ainda).
+
+**Achados só descobertos durante a implementação**: (1) não existe arquivo diário do COTAHIST
+(`COTAHIST_D{ddmmyy}.ZIP` devolve uma página de erro HTML, não um zip) — só o anual, ~80MB
+comprimido/700MB descomprimido pra 2026, ~2,8M linhas de largura fixa, 86% delas linhas de
+opção (`TPMERC` 070/080); (2) o arquivo de Séries Autorizadas tem dois formatos de linha —
+tipo "02" (ação/ETF, ~85 mil linhas) e tipo "03" (opção de índice em pontos, IBOVESPA/SMALL
+CAP, liquidação em R$/ponto, colunas totalmente diferentes) — tipo "03" ficou fora de escopo,
+BOVA11 (tipo "02") já cobre a exposição a índice pretendida; (3) a raiz de opção de um
+ativo-objeto nem sempre é o ticker menos o dígito de classe — Embraer negocia "EMBR3" mas sua
+raiz de opção é "EMBJ" (confirmado ao vivo, gap aceito e documentado em código, mesmo espírito
+dos achados de CNPJ truncado/fundo renomeado do `PENDING.md`); (4) o COTAHIST reflete o strike
+*vigente* de uma série, não um valor congelado — PETRJ199 mudou de strike (18,80 → 17,61) entre
+pregões por ajuste de evento corporativo, cross-validado contra o snapshot de Séries
+Autorizadas do mesmo dia.
+
+**Design**: primeiro domínio do projeto com cache global em vez de por identificador — as duas
+fontes novas devolvem o mercado inteiro numa chamada só, então `options_service.py` não
+reaproveita `single_row_cache`/`append_only_list_cache` (construídos em cima de "fetch por um
+id"): frescor rastreado via `MAX(fetched_at)` da tabela toda, refresh reconstrói a tabela
+inteira (delete-e-reinsere pra séries, mesmo raciocínio de `FiiProperty`; upsert em massa pra
+cotação EOD). Sem cache em disco do zip (diferente de `cvm_dfp.py`) — o TTL global já evita
+requisições repetidas. `option_eod_quotes` virou 1 linha por série (não histórico) — ajuste em
+relação ao `/plan` original, decidido ao perceber que o parser já calcula o máximo por série em
+memória e guardar histórico seria desperdício, já que o endpoint só usa o preço mais recente.
+Endpoint único `GET /v1/options/{underlying_symbol}/series`, sem validação de catálogo (aceita
+qualquer string, já que a query é local pós-refresh) — `data: []` pra ativo-objeto desconhecido,
+sempre `200`, mesmo raciocínio de `/v1/fiis/{cnpj}/properties`.
+
+**Verificado ao vivo**: primeira chamada real (`PETR4`) levou ~2min (download+parse do COTAHIST
+anual — mesma ordem de grandeza dos ~19s que o payout médio 5a da CVM já leva pra 5 zips
+anuais), 4.356 séries retornadas, cruzado byte-a-byte contra o COTAHIST decodificado à mão
+(PETRJ199: strike 17,61, último preço 31,85 em 2026-09-14, batendo exato); segunda chamada em
+0,46s com `cached: true`; `BOVA11` (índice via ETF) e `VALE3` com séries reais; `XYZW9`
+(inexistente) com `data: []` sem erro; nenhum cache em disco criado (confirmado dentro do
+container). Suite completa **249/249** sem regressão (+15 testes novos).
+
+**Estado ao final**: Fase 1.15 completa. Roadmap atualizado — resta gregas (Fase 1.16 futura,
+sem `/plan` ainda) como único item de brainstorm em aberto.

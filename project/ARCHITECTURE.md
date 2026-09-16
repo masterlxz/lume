@@ -236,6 +236,63 @@ tomadas.
   chamada ao Yahoo, cache confirmado na 2ª chamada, histórico de `eurusd` com 2.601 pontos desde
   2016-09-15. Suite completa 234/234 sem regressão (+9 testes novos).
 
+### Options — catálogo de séries + cotação EOD — Sessão 16 (fecha a Fase 1.15)
+
+- **Primeiro domínio com cache global, não por identificador**: toda fonte anterior busca dado
+  parametrizado por um id (ticker, CNPJ, par de moeda) — `single_row_cache.py`/
+  `append_only_list_cache.py` são construídos em cima dessa premissa. As duas fontes novas
+  (`b3_options_series.py`, `b3_cotahist.py`) devolvem o mercado inteiro numa chamada só, então
+  `options_service.py` não reaproveita os dois helpers genéricos: rastreia frescor via
+  `MAX(fetched_at)` da tabela toda (não por `underlying_symbol`) e, se velho, refaz a tabela
+  inteira (delete-e-reinsere pra `option_series`, mesmo raciocínio de `FiiProperty` — uma série
+  desregistrada deve sumir; upsert em massa por `series_ticker` pra `option_eod_quotes`) antes de
+  responder com um `SELECT ... WHERE underlying_symbol = ...` comum. Documentado aqui porque é
+  uma forma de "cadência de coleta" nova em relação à linha ainda aberta na tabela de decisões
+  de arquitetura no topo deste arquivo.
+- **Sem cache em disco do zip** (diferente de `cvm_dfp.py`): como o refresh já é gated pelo TTL
+  global (`options_ttl_seconds`, 86400s) e não por request individual, baixar de novo só quando
+  o TTL expira já evita o custo repetido — o cache em disco da CVM existe porque lá o fetch
+  acontece por-empresa mesmo sem nada estar "velho" globalmente; aqui não.
+- **`option_eod_quotes` é 1 linha por série, não append-only**: o desenho original do `/plan`
+  previa a tabela como histórico (chave composta `series_ticker, trade_date`), mas como o
+  COTAHIST tem que ser escaneado por inteiro de qualquer forma e o endpoint só usa o preço
+  *mais recente*, guardar histórico seria puro desperdício — virou uma tabela de 1 linha por
+  série (mesmo formato de `StockQuote`), decisão tomada durante a implementação ao perceber o
+  parser já calcula o máximo por série em memória.
+- **`b3_cotahist.py`**: confirmado ao vivo que não existe arquivo diário público
+  (`COTAHIST_D{ddmmyy}.ZIP` devolve uma página de erro) — só o anual
+  (`COTAHIST_A{yyyy}.ZIP`, ~80MB comprimido/700MB descomprimido pra 2026, ~2,8M linhas de
+  largura fixa 245 bytes). 86% das linhas são de opção (`TPMERC` 070=compra/080=venda);
+  confirmado que toda linha de opção já representa um negócio real (`TOTNEG` nunca `0`), sem
+  necessidade de filtro extra. Offsets de coluna verificados contra linhas reais, cruzando
+  `PREULT`/`PREEXE`/`DATVEN` da mesma série no mesmo dia com o snapshot do
+  `b3_options_series.py` — inclusive um ajuste real de strike por evento corporativo (PETRJ199
+  passou de 18,80 pra 17,61 entre pregões), confirmando que `PREEXE` reflete o strike vigente,
+  não um valor congelado.
+- **`b3_options_series.py`**: arquivo pipe-delimited (não largura fixa), dois formatos de linha
+  no mesmo arquivo — tipo "02" (ação/ETF, ~85 mil das ~87 mil linhas) e tipo "03" (opção de
+  índice em pontos, ex. IBOVESPA/SMALL CAP, liquidação em R$/ponto, formato de coluna
+  totalmente diferente). Tipo "03" ficou **fora de escopo** — exposição a índice já é coberta
+  por BOVA11 (tipo "02" comum), e o contrato de índice em pontos é um instrumento
+  estruturalmente diferente. Confirmado ao vivo que a raiz de opção (campo do ativo-objeto)
+  sempre é prefixo exato do ticker de série (zero exceções em ~85 mil linhas), mas **não** é
+  sempre igual ao ticker de ação menos o dígito de classe — Embraer negocia "EMBR3" mas sua
+  raiz de opção é "EMBJ" — gap conhecido, aceito e documentado em código (`_root_code()` em
+  `options_service.py`), mesmo espírito dos achados de CNPJ truncado/fundo renomeado já
+  registrados em `PENDING.md`.
+- **Endpoint único, sem validação de catálogo**: `GET /v1/options/{underlying_symbol}/series`
+  aceita qualquer string (diferente de `currencies`/`metals`, que validam contra um catálogo
+  antes de tocar a rede) — como a fonte já é uma tabela local pós-refresh, um ativo-objeto sem
+  série registrada é só uma query vazia, sem custo de rede a evitar. `data: []` pra
+  ativo-objeto desconhecido, `200` sempre (nunca 404), mesmo raciocínio de
+  `/v1/fiis/{cnpj}/properties`.
+- Validado ao vivo (Sessão 16): primeira chamada real (`PETR4`) ~2min (download+parse do
+  COTAHIST anual — mesma ordem de grandeza dos ~19s que a CVM já leva pra 5 zips anuais),
+  4.356 séries, cruzado byte-a-byte contra o COTAHIST decodificado à mão (PETRJ199: strike
+  17,61, último preço 31,85 em 2026-09-14); segunda chamada 0,46s com `cached: true`; `BOVA11`
+  e `VALE3` com séries reais; `XYZW9` (inexistente) com `data: []`; nenhum cache em disco
+  criado. Suite completa **249/249** sem regressão (+15 testes novos).
+
 ---
 
 ## Débitos Técnicos de Arquitetura

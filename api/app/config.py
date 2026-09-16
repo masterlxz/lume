@@ -11,6 +11,7 @@ class Settings(BaseSettings):
     stock_quote_ttl_seconds: int = 300
     fundamentals_ttl_seconds: int = 86400
     crypto_quote_ttl_seconds: int = 300
+    options_ttl_seconds: int = 86400
     bolsai_api_key: str = ""
     sec_edgar_contact_email: str = ""
 

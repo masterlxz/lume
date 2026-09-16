@@ -33,7 +33,8 @@ def db_session():
                 "us_stock_quotes, us_stock_technicals, us_stock_dividends_avg, "
                 "us_stock_price_history, us_stock_dividend_payments, reit_fundamentals, "
                 "fii_cnpj_resolution, selic_daily, di_futures_curve, "
-                "currency_quotes, currency_price_history"
+                "currency_quotes, currency_price_history, "
+                "option_series, option_eod_quotes"
             )
         )
         session.commit()

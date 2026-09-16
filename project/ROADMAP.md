@@ -85,10 +85,16 @@ ficam livres pra portar.
   Sessão 14** (ver `PHASE.md`/`ARCHITECTURE.md`). Selic saiu do BCB SGS como esperado (código
   432, Meta Selic); DI futuro achou fonte gratuita real (B3 "Pesquisa por Pregão", curva PRE) —
   não precisou de fonte paga nem scraping.
-- **Gestão de opções** (pedido do dono do projeto, Sessão 11) — dono do projeto quer que o
-  Anchor tenha suporte a gestão de opções (provavelmente opções de ações/índices B3, mas não
-  confirmado). Não pesquisado: fonte de dados de opções (cotação, gregas, séries/strikes
-  disponíveis) nem se a B3/CVM expõe isso de forma aberta ou se precisa de fonte paga.
+- ~~**Gestão de opções — catálogo + cotação EOD**~~ — **concluído na Fase 1.15, Sessão 16** (ver
+  `PHASE.md`/`ARCHITECTURE.md`). Escopo confirmado com o dono do projeto: ações e ETF/índice
+  (BOVA11) juntos. Duas fontes B3 gratuitas (Séries Autorizadas + COTAHIST) cobrem cadastro de
+  séries e último preço negociado — confirmado que não existe fonte grátis pra bid/ask, open
+  interest ou gregas/IV.
+- **Gestão de opções — gregas (Fase 1.16 futura)** — delta/gamma/theta/vega e volatilidade
+  implícita, adiados deliberadamente da Fase 1.15: exigem um módulo de precificação
+  Black-Scholes novo (não existe no projeto ainda), estimativa de volatilidade e interpolação da
+  curva DI futuro (`rates_service.py`, Fase 1.13) no vértice certo — nenhuma fonte grátis
+  fornece isso pronto, teria que ser calculado localmente. Sem `/plan` ainda.
 - Objetivo comum dos itens acima: o Anchor precisa ter acesso a tudo isso via Finance API,
   no mesmo modelo já estabelecido (endpoint novo por capacidade, cache-through via Postgres,
   consumido pelo cliente HTTP do Anchor). Dono do projeto não tem certeza de quais fontes usar

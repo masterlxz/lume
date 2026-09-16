@@ -11,6 +11,7 @@ from app.models.currency import CurrencyPriceHistory, CurrencyQuote
 from app.models.fii import FiiCnpjResolution, FiiMonthlyIndicator, FiiProperty
 from app.models.macro_series import MacroSeriesMonthly
 from app.models.metal import MetalPriceHistory, MetalQuote
+from app.models.option import OptionEodQuote, OptionSeries
 from app.models.stock import (
     StockBolsaiFundamentals,
     StockDividendPayment,
@@ -56,6 +57,8 @@ __all__ = [
     "B3IndexHistory",
     "MetalQuote",
     "MetalPriceHistory",
+    "OptionSeries",
+    "OptionEodQuote",
     "SecEdgarCikResolution",
     "UsStockFundamentals",
     "UsStockDcfFundamentals",

@@ -185,6 +185,57 @@ o Anchor faz de forma isolada (`data-collector/`), expondo tudo via uma API HTTP
   regressão (+9 testes novos). Resta só gestão de opções como item de brainstorm sem fonte
   pesquisada (ver `ROADMAP.md`).
 
+- [x] 1.15 — Gestão de opções: catálogo de séries + cotação EOD (Sessão 16): fecha o item de
+  brainstorm "gestão de opções" da Sessão 11 (ver `ROADMAP.md`) para ações e ETF/índice
+  (ex: BOVA11), escopo confirmado com o dono do projeto. **Pesquisa de fontes ao vivo**:
+  confirmado que não existe fonte grátis para bid/ask, open interest ou gregas/IV (Yahoo Finance
+  não tem chain de opções B3 — testado ao vivo, vazio pra PETR4.SA/VALE3.SA/BOVA11.SA; UP2DATA
+  segue atrás de Cloudflare desde dez/2025; bolsai não cobre derivativos). Duas fontes B3
+  gratuitas resolvem cadastro + preço: **Séries Autorizadas**
+  (`b3.com.br/lumis/portal/file/fileDownload.jsp?fileId=...`, arquivo estático pipe-delimited,
+  sem chave) dá o universo de séries registradas (ativo-objeto, call/put, strike, vencimento,
+  estilo); **COTAHIST** (`bvmf.bmfbovespa.com.br/InstDados/SerHist/COTAHIST_A{yyyy}.ZIP`, mesma
+  linhagem legada que `b3_taxa_swap.py` já usa) dá o último preço realmente negociado — 86% das
+  ~2,8M linhas do arquivo anual de 2026 são linhas de opção (`TPMERC` 070/080). **Achado real não
+  documentado em nenhuma pesquisa prévia**: não existe arquivo diário do COTAHIST
+  (`COTAHIST_D{ddmmyy}.ZIP` devolve uma página de erro, não um zip) — só o anual público,
+  confirmado ao vivo. **Achado de design que mudou o plano original**: como cada série só
+  interessa pelo *último* preço (não histórico), `option_eod_quotes` virou uma tabela de 1 linha
+  por série (como `stock_quotes`), não append-only como o plano inicial previa — o parser do
+  COTAHIST já teria que escanear o arquivo inteiro de qualquer forma, então guardar só o mais
+  recente por série evita inflar a tabela sem necessidade. **Padrão novo no projeto**: as duas
+  fontes não buscam por identificador (ao contrário de toda fonte anterior) — é um arquivo só
+  pro mercado inteiro, refresh dispara um delete-e-reinsere (série, mesmo raciocínio de
+  `FiiProperty`) ou upsert em massa (cotação EOD) global, com frescor rastreado via
+  `MAX(fetched_at)` da tabela toda, não por `underlying_symbol` — `options_service.py` não
+  reaproveita `single_row_cache`/`append_only_list_cache` por esse motivo. Sem cache em disco
+  do zip (diferente de `cvm_dfp.py`): como o refresh já é gated por TTL global (não por
+  request), baixar de novo só quando o TTL expira é suficiente. **Achado real durante a
+  implementação**: o campo de ativo-objeto do arquivo de Séries Autorizadas nem sempre é a raiz
+  do ticker menos o dígito de classe — a Embraer negocia como "EMBR3" mas sua raiz de opção é
+  "EMBJ" (confirmado ao vivo) — gap aceito e documentado (`_root_code()` em
+  `options_service.py`), mesmo espírito dos achados de CNPJ truncado/fundo renomeado já
+  registrados em `PENDING.md`. Também confirmado ao vivo que raiz de opção sempre é prefixo
+  exato do ticker de série (zero exceções em ~85 mil linhas testadas) e que um segundo formato
+  de linha do mesmo arquivo (tipo "03", opções de índice em pontos, ex. IBOVESPA/SMALL CAP,
+  liquidação em R$/ponto) foi deliberadamente deixado fora de escopo — exposição a índice já é
+  coberta por opções de BOVA11 (linha tipo "02", mesmo formato de ação). Endpoint único
+  `GET /v1/options/{underlying_symbol}/series` devolve todas as séries registradas pro
+  ativo-objeto com o último preço EOD quando existe (`last_price: null` pra série registrada mas
+  nunca negociada) — ativo-objeto desconhecido devolve `200` com `data: []`, não 404 (mesmo
+  raciocínio de `/v1/fiis/{cnpj}/properties`). **Verificado ao vivo**: primeira chamada real
+  (`PETR4`) levou ~2min (download+parse do COTAHIST anual, ~80MB comprimidos/700MB
+  descomprimidos, ~2,8M linhas — mesma ordem de grandeza dos ~19s que o payout médio 5a da CVM
+  já leva hoje), 4.356 séries retornadas, cruzado byte-a-byte contra o COTAHIST decodificado à
+  mão (série PETRJ199: strike 17,61, último preço 31,85 em 2026-09-14, batendo exato); segunda
+  chamada em 0,46s com `cached: true`; `BOVA11` (índice via ETF) e `VALE3` retornando séries
+  reais; ativo-objeto inexistente (`XYZW9`) retornando `data: []` sem erro; nenhum cache em
+  disco criado (confirmado dentro do container). Suite completa **249/249** sem regressão
+  (+15 testes novos). **Fora de escopo, fica pra Fase 1.16 futura**: gregas (delta/gamma/theta/
+  vega) e volatilidade implícita — exigem um módulo de precificação Black-Scholes novo,
+  estimativa de volatilidade e interpolação da curva DI futuro (`rates_service.py`, Fase 1.13)
+  no vértice certo; nenhuma fonte grátis fornece isso pronto.
+
 ### Fase 2 — Engine Fiscal (SEFAZ)
 
 Do blueprint original — NF-e/NFS-e via certificado digital A1, validação de schemas XML,
