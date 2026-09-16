@@ -38,8 +38,11 @@ SOURCE_NAME = f"{SERIES_SOURCE_NAME}+{QUOTES_SOURCE_NAME}"
 _UPSERT_CHUNK_SIZE = 5000
 
 
-def _refresh_series_catalog_if_stale(db: Session, ttl_seconds: int) -> tuple[bool, bool]:
-    """Returns `(refreshed, stale)`."""
+def refresh_series_catalog_if_stale(db: Session, ttl_seconds: int) -> tuple[bool, bool]:
+    """Returns `(refreshed, stale)`. Public — also called directly by
+    `option_greeks_service.py` (Fase 1.16), which needs the same global
+    refresh but reads a single series by ticker instead of listing by
+    `underlying_symbol`."""
     latest_fetched_at = db.scalar(select(func.max(OptionSeries.fetched_at)))
     if is_fresh(latest_fetched_at, ttl_seconds):
         return False, False
@@ -76,8 +79,9 @@ def _refresh_series_catalog_if_stale(db: Session, ttl_seconds: int) -> tuple[boo
     return True, False
 
 
-def _refresh_eod_quotes_if_stale(db: Session, ttl_seconds: int) -> tuple[bool, bool]:
-    """Returns `(refreshed, stale)`."""
+def refresh_eod_quotes_if_stale(db: Session, ttl_seconds: int) -> tuple[bool, bool]:
+    """Returns `(refreshed, stale)`. Public — see
+    `refresh_series_catalog_if_stale` above."""
     latest_fetched_at = db.scalar(select(func.max(OptionEodQuote.fetched_at)))
     if is_fresh(latest_fetched_at, ttl_seconds):
         return False, False
@@ -137,8 +141,8 @@ def _root_code(ticker: str) -> str:
 def get_series_with_last_quote(db: Session, underlying_symbol: str, ttl_seconds: int) -> dict:
     root_code = _root_code(underlying_symbol)
 
-    series_refreshed, series_stale = _refresh_series_catalog_if_stale(db, ttl_seconds)
-    quotes_refreshed, quotes_stale = _refresh_eod_quotes_if_stale(db, ttl_seconds)
+    series_refreshed, series_stale = refresh_series_catalog_if_stale(db, ttl_seconds)
+    quotes_refreshed, quotes_stale = refresh_eod_quotes_if_stale(db, ttl_seconds)
 
     series_rows = db.scalars(
         select(OptionSeries)

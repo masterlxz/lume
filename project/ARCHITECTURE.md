@@ -293,6 +293,59 @@ tomadas.
   e `VALE3` com séries reais; `XYZW9` (inexistente) com `data: []`; nenhum cache em disco
   criado. Suite completa **249/249** sem regressão (+15 testes novos).
 
+### Option greeks — Black-Scholes — Sessão 16 (fecha a Fase 1.16)
+
+- **Primeiro recurso do projeto sem tabela/migration própria**: gregas são uma view computada
+  sobre 4 fontes já cacheadas de forma independente (série+cotação EOD da opção, Fase 1.15;
+  cotação do ativo-objeto, `stock_service.py`; curva DI futuro, Fase 1.13) — persistir o
+  resultado não faria sentido (muda a cada tick do preço do ativo-objeto, um "cache" de grega
+  estaria sempre desatualizado). `option_greeks_service.py` só orquestra a leitura das quatro e
+  computa; nenhum TTL próprio.
+- **Preço do ativo-objeto vem do chamador, não é adivinhado**: `option_series.underlying_symbol`
+  (Fase 1.15) é só a raiz da opção (ex: "PETR"), sem dígito de classe — decisão confirmada com o
+  dono do projeto de expor `underlying_ticker` como parâmetro obrigatório do endpoint de gregas
+  em vez de tentar derivar a classe certa (ON/PN/PNA/...) automaticamente. Motivo: a Fase 1.15
+  já achou um caso real onde a raiz não é derivável do ticker (Embraer, `PENDING.md` P2) —
+  arriscar a mesma heurística pra escolher qual classe cotar poderia calcular uma grega com o
+  preço do papel errado, silenciosamente. Quem já gerencia a posição sabe o ticker certo; a API
+  só busca a cotação (reaproveitando `stock_service.get_or_refresh_quote`, mesmo cache de
+  sempre) em vez de confiar num número cru vindo de fora.
+- **`black_scholes.py`**: matemática pura, stdlib `math` (`erf` pra CDF normal) — projeto não
+  tinha nenhuma dependência de cálculo numérico (`requirements.txt`), uma fórmula fechada não
+  justifica introduzir numpy/scipy. Fórmulas validadas contra o caso de referência de
+  livro-texto (Hull) antes de confiar na implementação. IV resolvida via Newton-Raphson
+  (vega como derivada) com fallback pra bisseção — `None` explícito (não uma exceção lá dentro)
+  quando o preço de mercado está abaixo do valor intrínseco, sinal de preço desatualizado, não
+  bug do solver. Estilo americano (`option_series.style`) não é distinguido — só aproximação
+  europeia, simplificação consciente documentada em código (sem fonte grátis pra validar prêmio
+  de exercício antecipado).
+- **Curva DI interpolada por dias corridos, não dias úteis**: evita ter que implementar um
+  calendário de feriados brasileiro só pra isso — `T` da opção usa a mesma base (dias
+  corridos/365), então os dois lados da interpolação são consistentes entre si mesmo sendo uma
+  aproximação (dias corridos, não úteis) do que um book de precificação profissional usaria.
+  Fora do intervalo publicado pela curva, usa o vértice mais próximo (sem extrapolar). Mesmo
+  padrão de recuo dia-a-dia (até 10 dias) em cima de `NoCurveDataError` que a curva em si já usa
+  pra fim de semana/feriado (Fase 1.13).
+- **IV calculada a partir do último preço *realmente* negociado, que pode ser antigo**: séries
+  pouco líquidas (Fase 1.15) têm `last_trade_date` de dias ou semanas atrás — a resposta expõe
+  esse campo explicitamente em vez de esconder a proveniência do preço usado, mesmo raciocínio
+  de não fazer julgamento de negócio que não é da API (ex: Fear&Greed cru sem classificação,
+  Fase 1.5) — quem consome decide se a marcação está boa o bastante.
+- **Refactor pequeno em `options_service.py`**: os dois refreshes globais internos da Fase 1.15
+  (`_refresh_series_catalog_if_stale`/`_refresh_eod_quotes_if_stale`) viraram públicos
+  (`refresh_series_catalog_if_stale`/`refresh_eod_quotes_if_stale`) pra `option_greeks_service.py`
+  reaproveitar sem duplicar a lógica de cache global — mesmo mecanismo, só chamado de dois
+  lugares agora.
+- Validado ao vivo (Sessão 16): fórmulas conferidas contra o caso de referência antes de
+  implementar; `PETRL522` (call PETR4 dez/2026, strike 49,91, spot 49,06) devolveu delta 0,576,
+  gamma 0,034, theta -0,033/dia, vega 0,097, IV 46,49% — faixa plausível pra uma ação de
+  commodity brasileira; taxa livre de risco 13,59% interpolada da curva DI de 2026-09-15 (o dia
+  anterior — a curva de hoje ainda não estava publicada no momento do teste, fallback
+  funcionou); série desconhecida e série nunca negociada (`PETRU696`) retornando 404; segunda
+  chamada em 0,25s (tudo em cache, nenhuma rede nova). Suite completa **266/266** sem regressão
+  (+17 testes novos, incluindo round-trip de IV: gera preço BS com vol conhecida, confirma que o
+  solver reconstrói a mesma vol).
+
 ---
 
 ## Débitos Técnicos de Arquitetura

@@ -90,11 +90,10 @@ ficam livres pra portar.
   (BOVA11) juntos. Duas fontes B3 gratuitas (Séries Autorizadas + COTAHIST) cobrem cadastro de
   séries e último preço negociado — confirmado que não existe fonte grátis pra bid/ask, open
   interest ou gregas/IV.
-- **Gestão de opções — gregas (Fase 1.16 futura)** — delta/gamma/theta/vega e volatilidade
-  implícita, adiados deliberadamente da Fase 1.15: exigem um módulo de precificação
-  Black-Scholes novo (não existe no projeto ainda), estimativa de volatilidade e interpolação da
-  curva DI futuro (`rates_service.py`, Fase 1.13) no vértice certo — nenhuma fonte grátis
-  fornece isso pronto, teria que ser calculado localmente. Sem `/plan` ainda.
+- ~~**Gestão de opções — gregas**~~ — **concluído na Fase 1.16, Sessão 16** (ver `PHASE.md`/
+  `ARCHITECTURE.md`). Black-Scholes puro (stdlib `math`, sem nova dependência), preço do
+  ativo-objeto informado pelo chamador (`underlying_ticker`) em vez de adivinhado — decisão
+  confirmada com o dono do projeto pra evitar grega errada por classe de ação errada.
 - Objetivo comum dos itens acima: o Anchor precisa ter acesso a tudo isso via Finance API,
   no mesmo modelo já estabelecido (endpoint novo por capacidade, cache-through via Postgres,
   consumido pelo cliente HTTP do Anchor). Dono do projeto não tem certeza de quais fontes usar

@@ -236,6 +236,52 @@ o Anchor faz de forma isolada (`data-collector/`), expondo tudo via uma API HTTP
   estimativa de volatilidade e interpolação da curva DI futuro (`rates_service.py`, Fase 1.13)
   no vértice certo; nenhuma fonte grátis fornece isso pronto.
 
+- [x] 1.16 — Gregas de opções via Black-Scholes (Sessão 16, mesmo dia): fecha o item que a 1.15
+  deixou pra depois. **Sem tabela/migration nova** — gregas são uma view computada sobre 4
+  fontes já cacheadas de forma independente (série+cotação EOD da opção, Fase 1.15; cotação do
+  ativo-objeto, `stock_service.py`; curva DI futuro, Fase 1.13), recomputada a cada chamada
+  (cachear o resultado não faria sentido — muda a cada tick do preço do ativo-objeto).
+  **Decisão confirmada com o dono do projeto**: o preço do ativo-objeto é informado pelo
+  chamador via `underlying_ticker` (query param), não adivinhado pela API — a raiz de opção da
+  Fase 1.15 não é suficiente pra saber a classe certa da ação (ON/PN/PNA/...) com segurança
+  (Embraer já provou que adivinhar quebra, `PENDING.md` P2), e uma grega calculada com o preço
+  do papel errado seria um erro silencioso pior que pedir o ticker de volta pra quem já gerencia
+  a posição. `api/app/services/black_scholes.py` novo: matemática pura (stdlib `math`, sem
+  numpy/scipy — projeto não tinha essa dependência e uma fórmula fechada não justifica
+  introduzir uma), preço/gregas/IV (Newton-Raphson com fallback pra bisseção), fórmulas
+  validadas contra o caso de referência de livro-texto (Hull: S=K=100,T=1,r=5%,σ=20% →
+  call≈10,4506/put≈5,5735/delta≈0,6368/gamma≈0,018762/vega≈0,3752/theta≈-0,017573/dia).
+  Estilo americano (`option_series.style`) não é distinguido — só aproximação europeia, sem
+  fonte grátis pra validar prêmio de exercício antecipado, documentado como simplificação
+  consciente. `api/app/services/option_greeks_service.py` novo orquestra: reaproveita os
+  refreshes globais da Fase 1.15 (tornados públicos:
+  `refresh_series_catalog_if_stale`/`refresh_eod_quotes_if_stale` em `options_service.py`),
+  busca a série+último preço, cotação do ativo-objeto (`stock_service.get_or_refresh_quote`,
+  TTL de 300s já existente), curva DI futuro (`rates_service.get_or_refresh_di_futures_curve`,
+  recuando dia a dia até 10 dias em fim de semana/feriado, mesmo padrão já usado pela curva em
+  si) interpolada linearmente por `dias_corridos` no prazo até o vencimento (eixo em dias
+  corridos, não dias úteis — evita implementar um calendário de feriados só pra isso; `T` da
+  opção usa a mesma base). IV resolvida a partir do **último preço realmente negociado** (que
+  pode ser de dias/semanas atrás pra série pouco líquida) — a resposta expõe `last_trade_date`
+  explicitamente em vez de esconder a proveniência, mesmo espírito de não fazer julgamento de
+  negócio que não é da API (ex: Fear&Greed cru sem classificação, Fase 1.5). Endpoint
+  `GET /v1/options/{series_ticker}/greeks?underlying_ticker=...` — pequeno refactor do router
+  (prefixo de `/v1/options/{underlying_symbol}` fixo pra `/v1/options` puro com duas rotas, URL
+  de `/series` da 1.15 inalterada). Erros mapeados: 404 série desconhecida/nunca negociada, 422
+  opção vencida ou preço abaixo do valor intrínseco (nenhuma vol positiva reproduz — sinal de
+  preço obsoleto, não bug), 502 qualquer fonte fora do ar. **Verificado ao vivo**: fórmulas
+  conferidas por script solto antes de implementar; `GET /v1/options/PETRL522/greeks?
+  underlying_ticker=PETR4` (call dez/2026, strike 49,91, spot 49,06, quase-no-dinheiro) devolveu
+  delta 0,576, gamma 0,034, theta -0,033/dia, vega 0,097, IV implícita 46,49% (faixa plausível
+  pra Petrobras), taxa livre de risco 13,59% interpolada da curva DI de 2026-09-15 (curva de
+  hoje ainda não publicada no momento do teste, fallback pro dia anterior funcionou); série
+  desconhecida e série sem negociação (`PETRU696`) retornando 404; segunda chamada em 0,25s
+  (tudo em cache). Suite completa **266/266** sem regressão (+17 testes novos, incluindo
+  round-trip de IV: gera um preço BS com uma vol conhecida e confirma que o solver reconstrói a
+  mesma vol). Fecha o último item de brainstorm que tinha pesquisa de fonte concluída — restam
+  só as 3 ideias mais antigas do roadmap nunca sequenciadas (Open Finance, Unified Payment API,
+  SDK do catálogo de fontes, ver `ROADMAP.md`), sem pesquisa de fonte feita ainda.
+
 ### Fase 2 — Engine Fiscal (SEFAZ)
 
 Do blueprint original — NF-e/NFS-e via certificado digital A1, validação de schemas XML,

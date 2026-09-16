@@ -707,5 +707,51 @@ anuais), 4.356 séries retornadas, cruzado byte-a-byte contra o COTAHIST decodif
 (inexistente) com `data: []` sem erro; nenhum cache em disco criado (confirmado dentro do
 container). Suite completa **249/249** sem regressão (+15 testes novos).
 
-**Estado ao final**: Fase 1.15 completa. Roadmap atualizado — resta gregas (Fase 1.16 futura,
+**Estado ao final da Fase 1.15**: completa. Roadmap atualizado — resta gregas (Fase 1.16 futura,
 sem `/plan` ainda) como único item de brainstorm em aberto.
+
+**Continuação da mesma sessão — Fase 1.16, gregas de opções via Black-Scholes**: pedido do dono
+do projeto pra seguir direto pro item que a 1.15 tinha deixado pra depois. **Decisão via
+`/plan`, confirmada com o dono do projeto antes de escrever código**: o preço do ativo-objeto é
+informado pelo chamador via `underlying_ticker` (query param), não adivinhado pela API — a raiz
+de opção da Fase 1.15 (ex: "PETR") não é suficiente pra saber a classe certa da ação
+(ON/PN/PNA/...) com segurança, e a Embraer já tinha provado que adivinhar quebra (`PENDING.md`
+P2); uma grega calculada com o preço do papel errado seria um erro silencioso, pior que pedir o
+ticker de volta pra quem já gerencia a posição.
+
+**Design**: primeiro recurso do projeto sem tabela/migration própria — gregas são uma view
+computada sobre 4 fontes já cacheadas de forma independente (série+cotação EOD da opção, Fase
+1.15; cotação do ativo-objeto, `stock_service.py`; curva DI futuro, Fase 1.13), recomputada a
+cada chamada (cachear o resultado não faria sentido, muda a cada tick do preço do
+ativo-objeto). `black_scholes.py` novo: matemática pura via stdlib `math` (sem numpy/scipy —
+projeto não tinha essa dependência, uma fórmula fechada não justifica introduzir uma), preço +
+gregas + volatilidade implícita (Newton-Raphson com fallback pra bisseção), fórmulas conferidas
+por script solto contra o caso de referência de livro-texto (Hull: S=K=100,T=1,r=5%,σ=20% →
+call≈10,4506/put≈5,5735/delta≈0,6368/gamma≈0,018762/vega≈0,3752/theta≈-0,017573/dia) antes de
+confiar na implementação. Estilo americano não é distinguido — só aproximação europeia,
+simplificação consciente (nenhuma fonte grátis dá o prêmio de exercício antecipado pra validar
+contra). Curva DI interpolada por `dias_corridos` (não dias úteis, evita precisar de um
+calendário de feriados só pra isso) — `T` da opção usa a mesma base, mesmo padrão de recuo
+dia-a-dia (até 10 dias) em cima de `NoCurveDataError` que a curva já usa pra fim de
+semana/feriado. IV resolvida a partir do último preço *realmente* negociado — que pode ser de
+dias/semanas atrás pra série pouco líquida — resposta expõe `last_trade_date` explicitamente em
+vez de esconder a proveniência (mesmo raciocínio de Fear&Greed cru sem classificação, Fase 1.5).
+`options_service.py` ganhou um pequeno refactor (os dois refreshes globais internos da Fase 1.15
+viraram públicos) pra `option_greeks_service.py` reaproveitar sem duplicar a lógica de cache
+global. Endpoint `GET /v1/options/{series_ticker}/greeks?underlying_ticker=...` — refactor
+pequeno do router (prefixo de `/v1/options/{underlying_symbol}` fixo pra `/v1/options` puro com
+duas rotas, URL de `/series` inalterada).
+
+**Verificado ao vivo**: `GET /v1/options/PETRL522/greeks?underlying_ticker=PETR4` (call PETR4
+dez/2026, strike 49,91, spot 49,06, quase-no-dinheiro) devolveu delta 0,576, gamma 0,034,
+theta -0,033/dia, vega 0,097, IV implícita 46,49% (faixa plausível pra uma ação de commodity
+brasileira), taxa livre de risco 13,59% interpolada da curva DI de 2026-09-15 (a curva de hoje
+ainda não estava publicada no momento do teste, fallback pro dia anterior funcionou); série
+desconhecida e série nunca negociada (`PETRU696`) retornando 404; segunda chamada em 0,25s
+(tudo em cache, nenhuma rede nova). Suite completa **266/266** sem regressão (+17 testes novos,
+incluindo round-trip de IV: gera um preço BS com uma vol conhecida e confirma que o solver
+reconstrói a mesma vol).
+
+**Estado ao final**: Fase 1.16 completa. Roadmap atualizado — restam só as 3 ideias mais antigas
+nunca sequenciadas (Open Finance, Unified Payment API, SDK do catálogo de fontes), sem pesquisa
+de fonte feita ainda.
