@@ -755,3 +755,25 @@ reconstrói a mesma vol).
 **Estado ao final**: Fase 1.16 completa. Roadmap atualizado — restam só as 3 ideias mais antigas
 nunca sequenciadas (Open Finance, Unified Payment API, SDK do catálogo de fontes), sem pesquisa
 de fonte feita ainda.
+
+### 2026-09-23 — Sessão 18
+
+**Objetivo**: incorporar à documentação as notas soltas do dono do projeto (`lume.md`, deixado
+na raiz sem commitar) — ideias pra debate, não decisões fechadas.
+
+**Feito**:
+- Conteúdo inteiro do `lume.md` registrado em `ROADMAP.md`, seção nova "Reposicionamento do
+  Lume" (escopo como centro de informações, integrações burocráticas saindo pra projeto
+  separado, modelo local grátis vs. hospedado pago, instância local compartilhada entre Anchor e
+  Warden, princípio "pago nunca tranca funcionalidade básica", esboço de `DataProvider`/
+  `ProviderRegistry`), com os conflitos contra o que já existe anotados em vez de resolvidos:
+  Fases 2-4 do blueprint, porta dinâmica do `sidecar_main.py`, keyring fora do modo local,
+  contrato de erro hoje inconsistente entre services, proveniência de dado no cache.
+- 3 linhas novas "Em debate" na tabela de decisões do `ARCHITECTURE.md`.
+- `lume.md` removido da raiz depois de incorporado (mesmo tratamento do blueprint na Sessão 1).
+- Observação: a nota dizia que a renomeação EasyBusiness → Lume "ainda não foi aplicada no
+  repositório" — já foi (repo e docs já usam Lume).
+
+**Estado ao final**: nenhum código alterado. Próximo passo: debater os pontos em aberto da seção
+nova do `ROADMAP.md` antes de qualquer `/plan`.
+

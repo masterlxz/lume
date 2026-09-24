@@ -121,6 +121,138 @@ novo por fonte, é a mesma lógica disparada por um agendador em vez de por um h
   fonte, etc.) não se paga ainda. Registrado aqui como proposta de arquitetura pra quando essa
   fase chegar; não sequenciado em nenhuma Fase do `PHASE.md` ainda, nem passou por `/plan`.
 
+### Reposicionamento do Lume — escopo, modelo local vs. hospedado, `DataProvider` plugável (Brainstorm — sem `/plan`, Sessão 18)
+
+> Origem: notas soltas do dono do projeto (`lume.md` na raiz, incorporado aqui e removido do
+> repo na Sessão 18). **São ideias pra debater e possivelmente implementar — nada aqui foi
+> decidido em definitivo nem passou por `/plan`.** Onde a ideia conflita com o que já está
+> documentado/implementado, o conflito está anotado explicitamente em vez de resolvido.
+
+**Renomeação**: a nota ainda fala "EasyBusiness Finance API foi renomeada para Lume (mudança
+ainda não aplicada no repositório)" — isso já está desatualizado: o repo já é `masterlxz/lume` e a
+documentação já usa o nome Lume. Resta só o histórico (`SESSIONS.md` das primeiras sessões cita
+`easybusiness`), que fica como está por ser log.
+
+#### 1. Escopo: "centro de informações", não plataforma de integrações
+
+- Lume passa a ser definido como um **centro de informações** — hoje financeiras, mas sem se
+  restringir a finanças no futuro (outros domínios de dado podem entrar).
+- **Integrações burocráticas (NF-e, boleto, B3) saem do Lume** — viraram um projeto open-source
+  separado, hoje parado (referenciado como `integracoes-br.md`, arquivo que não está neste repo).
+  O `b3-sdk` desse projeto separado pode, no futuro, **alimentar** o Lume com dado de custódia —
+  mas o código de integração fica lá, o Lume só consome.
+- **Conflito com a documentação atual (a debater)**: `OVERVIEW.md` ("plataforma open-source de
+  automação, finanças e gestão para o empreendedor brasileiro"), `CONTEXT.md` (Vision, Non Goals)
+  e `PHASE.md`/`OVERVIEW.md` (Fase 2 — Engine Fiscal SEFAZ, Fase 3 — WhatsApp/Meta, Fase 4 —
+  Workspace) ainda descrevem a visão de 3 camadas do blueprint. Se o reposicionamento for
+  confirmado:
+  - Fase 2 (SEFAZ/NF-e) sai do Lume de vez → projeto de integrações.
+  - "Unified Payment API" e baixa de boleto/Pix (Ideias de Expansão abaixo, e exemplos de
+    monetização do blueprint — R$ 0,15/nota, micro-taxa sobre boleto/Pix) também saem.
+  - Fase 3 (WhatsApp) e Fase 4 (Workspace) ficam sem dono claro — não são "informação" nem
+    "integração burocrática". Precisa decidir se morrem, viram consumidores do Lume (como o
+    Anchor) ou vão pra outro projeto.
+  - A nota não fala de B3 de mercado (cotação, COTAHIST, opções, curva DI) — assumido que isso
+    **continua** no Lume, por ser dado/informação; o que sai é a integração operacional
+    (custódia, CEI/área do investidor). Confirmar.
+  - Open Finance (extratos bancários) fica na fronteira: é dado, mas exige integração
+    regulada/consentimento — decidir de que lado cai.
+
+#### 2. Modelo local (grátis) vs. hospedado (pago)
+
+- **Restrição de custo**: a versão gratuita/local **não pode gerar custo pro Fabio**.
+- Lume roda **localmente na máquina do usuário por padrão** (grátis). Uma versão **hospedada
+  pelo Fabio seria paga** — mesmo padrão de tier gerenciado já usado no TruthID. Isso responde
+  parcialmente a pergunta em aberto de "Modelo Open-Core & Monetização" acima ("como cobrar pelo
+  uso da Finance API"): o que se cobra é a hospedagem/conveniência (e dado premium, ver item 3),
+  não o uso local.
+- Já é coerente com o que existe: Fase 1.10 (modo sidecar SQLite, binário PyInstaller) é
+  exatamente o "Lume local grátis".
+- **Ideia nova — instância local compartilhada**: Anchor continua empacotando o binário do Lume
+  como sidecar, mas com **fallback**: na inicialização checa se já existe uma instância de Lume
+  rodando localmente (em porta/socket fixo); se existe, usa essa instância compartilhada; se não,
+  sobe a própria cópia embutida.
+- Motivação: se o **Warden** (outro projeto do ecossistema — primeiro registro dele neste repo)
+  também estiver rodando na máquina, Anchor e Warden **compartilham a mesma instância de Lume
+  automaticamente**, sem o usuário instalar nada extra — e, por consequência, compartilham cache
+  (menos chamadas às fontes externas, menos risco de rate limit).
+- **Pontos a debater antes de qualquer `/plan`**:
+  - Conflito direto com o design atual do sidecar: `api/sidecar_main.py` deliberadamente usa
+    porta atribuída pelo SO (ou `PORT` do env) e anuncia via stdout `SIDECAR_PORT=<port>`,
+    justamente pra **não** chutar porta fixa que pode colidir. Descoberta por porta fixa reabre
+    isso — alternativas: socket Unix/named pipe em caminho conhecido, ou um arquivo de
+    descoberta (lockfile em diretório de dados do usuário com porta+PID+versão).
+  - Identificação: bater numa porta e achar "algo" não prova que é um Lume — precisa de um
+    endpoint de handshake (ex: `/health` com nome+versão da API) antes de confiar.
+  - Ciclo de vida: se o Anchor subiu a instância e o Warden passou a usá-la, o que acontece
+    quando o Anchor fecha? Opções: instância vira daemon independente (o "Lume-daemon" citado
+    na nota), refcount de clientes, ou quem subiu mata e o outro sobe a própria (perdendo o
+    compartilhamento).
+  - Versão: Anchor e Warden podem embutir versões diferentes do Lume. Precisa de regra de
+    compatibilidade (ex: usar a compartilhada só se a versão da API for ≥ a mínima que o cliente
+    exige; senão sobe a própria).
+  - Onde fica o SQLite local compartilhado (diretório de dados comum do "ecossistema", não o do
+    Anchor) e autenticação local (`X-API-Key` hoje é por env — dois apps precisam conhecer a
+    mesma chave, ou o modo local aceita só loopback sem chave).
+
+#### 3. Dado premium sem quebrar o "Anchor grátis/self-hosted"
+
+- **Preocupação**: comprar dado de melhor qualidade no futuro não pode quebrar a promessa de
+  Anchor grátis/self-hosted.
+- **Solução proposta**: interface `DataProvider` com múltiplas implementações plugáveis:
+  - **Fonte grátis por padrão** — o que já existe hoje (`api/app/sources/`).
+  - **BYO-key** — usuário cola a própria chave de um provedor pago; ele paga a assinatura dele,
+    sem custo pro Fabio.
+  - **Dado premium reservado ao tier hospedado** — aí o Fabio absorve o custo, porque está
+    cobrando por isso.
+- **Princípio proposto pro ecossistema inteiro** (não só Lume): **grátis + self-hosted sempre
+  funciona com qualidade padrão; pago é conveniência ou qualidade extra, nunca funcionalidade
+  básica trancada.** Já é o padrão no TruthID (Ledger grátis vs. facilitado pago) e no
+  Lume-daemon (local grátis vs. hospedado pago). Se aceito, vale registrar também nos
+  `GUIDELINES.md`/docs dos outros projetos.
+
+#### 4. Esboço da interface `DataProvider` (não implementado)
+
+A nota usa vocabulário de Rust ("traits"); o Lume é Python — o equivalente seria
+`typing.Protocol` (ou ABC) por categoria.
+
+- **Interfaces separadas por categoria de dado** (ex: `QuoteProvider`, `FundamentalsProvider`,
+  `CryptoScoreProvider`) em vez de uma única — nem todo provider cobre todas as categorias.
+- **`ProviderRegistry`** resolve qual provider usar por chamada, em **cascata de prioridade**:
+  BYO-key primeiro se configurada; cai pra grátis se falhar ou não estiver configurada.
+- **Chave do usuário no keyring do SO**, nunca em texto puro em arquivo de config ou banco.
+- **Cache como camada ortogonal aos providers** (TTL por tipo de dado — cotação expira em
+  segundos, fundamentos em dias), não reimplementado dentro de cada provider. É o que permite
+  Anchor e Warden compartilharem cache quando batem na mesma instância local.
+- **Contrato de erro distingue "sem dado" de "provider caiu"** — pra quem consome decidir se
+  tenta o próximo provider da cascata ou mostra erro pro usuário.
+
+**Como isso se encaixa no código atual (notas pra debate)**:
+- Hoje cada `*_service.py` chama **diretamente** um módulo específico de `sources/` e faz
+  fetch+upsert+freshness no mesmo lugar. A camada de cache já é *quase* ortogonal
+  (`freshness.py`, `single_row_cache.py`, `append_only_list_cache.py`), mas a escolha da fonte
+  está fixa no service. O refactor seria: service pede à categoria via registry, registry
+  escolhe o provider, cache fica em volta.
+- Já existem casos de "cascata" hard-coded que viram candidatos naturais: bolsai vs. Yahoo pra
+  ações B3, CoinGecko/CoinMetrics/DefiLlama em cripto.
+- O contrato de erro já é parcialmente assim, mas inconsistente: há erros de "sem dado"
+  (`NoDividendDataError`, `TickerNotFoundError`, `FundNotFoundError`, … — subclasses de
+  `ValueError`) e de "fonte falhou" (`YahooFinanceError`, `B3TaxaSwapError`,
+  `RiskFreeRateUnavailableError` — `RuntimeError`), cada um definido localmente por service. A
+  proposta pediria uma hierarquia comum (ex: `NoDataError` vs. `ProviderUnavailableError`).
+  `PENDING.md` P1 (FII desconhecido vs. FII sem imóvel) é o mesmo tipo de problema.
+- **Proveniência no cache**: se mais de um provider pode preencher a mesma linha, a tabela
+  precisa registrar qual provider gerou o dado (e talvez preferir sobrescrever dado grátis
+  quando o premium responde, mas não o contrário). A resposta da API poderia expor isso, no
+  mesmo espírito de `last_trade_date` das gregas.
+- **Keyring vs. servidor**: keyring do SO faz sentido no modo local/sidecar (máquina do
+  usuário, lib `keyring` no Python). No modo Docker/self-host de servidor e no hospedado não há
+  keyring de usuário — lá a chave viria de env/secret manager. Definir onde BYO-key é suportado
+  (provavelmente só no local).
+- **Relação com a ingestão proativa** (seção anterior): um scheduler de ingestão precisaria
+  decidir com qual provider ingerir — BYO-key do usuário no modo local faz sentido; no hospedado,
+  o premium.
+
 ### Ideias de Expansão (Brainstorm — sem `/plan`)
 
 - Open Finance de verdade (extratos bancários via Open Finance Brasil) — mencionado no

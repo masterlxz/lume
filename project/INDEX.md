@@ -1,6 +1,6 @@
 # Lume — Estado do Projeto
 
-> Última atualização: 2026-08-27 (Sessão 1 — bootstrap do projeto: blueprint lido, estrutura `project/` criada, catálogo inicial das fontes de dados do Anchor levantado)
+> Última atualização: 2026-09-23 (Sessão 18 — notas de reposicionamento do Lume incorporadas ao `ROADMAP.md` como brainstorm: escopo, local vs. hospedado, `DataProvider` plugável)
 
 ---
 
